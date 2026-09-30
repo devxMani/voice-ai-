@@ -1,0 +1,7 @@
+{
+  "name": "Unknown country",
+  "user_input": "Tell me about xyznonexistentcountry.",
+  "expected_tool": "get_country_info",
+  "expected_behavior": "Agent should gracefully explain that the country could not be found.",
+  "max_latency_ms": 3000
+}

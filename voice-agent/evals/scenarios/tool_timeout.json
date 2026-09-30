@@ -1,0 +1,7 @@
+{
+  "name": "Tool timeout",
+  "user_input": "Tell me about Japan.",
+  "expected_tool": "get_country_info",
+  "expected_behavior": "Agent should gracefully handle a slow or timed-out tool and give the user a useful response.",
+  "max_latency_ms": 3000
+}

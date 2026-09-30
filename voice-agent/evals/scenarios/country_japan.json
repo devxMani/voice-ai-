@@ -1,0 +1,7 @@
+{
+  "name": "Japan country lookup",
+  "user_input": "Tell me about Japan.",
+  "expected_tool": "get_country_info",
+  "expected_behavior": "Agent should retrieve information about Japan and answer the user.",
+  "max_latency_ms": 3000
+}
