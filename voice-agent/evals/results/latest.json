@@ -1,0 +1,30 @@
+[
+  {
+    "scenario": "Japan country lookup",
+    "user_input": "Tell me about Japan.",
+    "expected_tool": "get_country_info",
+    "timestamp": "2026-09-20T14:09:30.726875",
+    "status": "not_run"
+  },
+  {
+    "scenario": "Tokyo time lookup",
+    "user_input": "What time is it in Tokyo?",
+    "expected_tool": "get_time",
+    "timestamp": "2026-09-20T14:09:30.727332",
+    "status": "not_run"
+  },
+  {
+    "scenario": "Tool timeout",
+    "user_input": "Tell me about Japan.",
+    "expected_tool": "get_country_info",
+    "timestamp": "2026-09-20T14:09:30.727356",
+    "status": "not_run"
+  },
+  {
+    "scenario": "Unknown country",
+    "user_input": "Tell me about xyznonexistentcountry.",
+    "expected_tool": "get_country_info",
+    "timestamp": "2026-09-20T14:09:30.727382",
+    "status": "not_run"
+  }
+]
