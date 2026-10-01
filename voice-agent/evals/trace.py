@@ -12,7 +12,7 @@ class ToolTrace:
 
 
 @dataclass
-class VoiceTrace:
+class TurnTrace:
     user_input: str = ""
     assistant_output: str = ""
 
@@ -24,7 +24,6 @@ class VoiceTrace:
     e2e_latency_ms: float | None = None
 
     interrupted: bool = False
-
     status: str = "running"
     error: str | None = None
 
@@ -32,6 +31,7 @@ class VoiceTrace:
         return {
             "user_input": self.user_input,
             "assistant_output": self.assistant_output,
+
             "tools": [
                 {
                     "name": tool.name,
@@ -43,13 +43,33 @@ class VoiceTrace:
                 }
                 for tool in self.tools
             ],
+
             "latency": {
                 "stt_ms": self.stt_latency_ms,
                 "llm_ttft_ms": self.llm_ttft_ms,
                 "tts_ttfb_ms": self.tts_ttfb_ms,
                 "e2e_ms": self.e2e_latency_ms,
             },
+
             "interrupted": self.interrupted,
+            "status": self.status,
+            "error": self.error,
+        }
+
+
+@dataclass
+class VoiceTrace:
+    turns: list[TurnTrace] = field(default_factory=list)
+
+    status: str = "running"
+    error: str | None = None
+
+    def to_dict(self):
+        return {
+            "turns": [
+                turn.to_dict()
+                for turn in self.turns
+            ],
             "status": self.status,
             "error": self.error,
         }

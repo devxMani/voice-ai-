@@ -1,0 +1,15 @@
+{
+  "user_input": "What time is it?",
+  "assistant_output": "<expr type=\"expression\" label=\"neutral\"/> It is currently ten thirty two.",
+  "tools": [],
+  "latency": {
+    "stt_ms": null,
+    "llm_ttft_ms": null,
+    "tts_ttfb_ms": null,
+    "e2e_ms": null
+  },
+  "interrupted": false,
+  "status": "completed",
+  "error": null,
+  "trace_started_at": "2026-10-01T04:55:28.926485"
+}

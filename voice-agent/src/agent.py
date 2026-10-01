@@ -2,7 +2,7 @@ import time
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
+from evals.live_trace import LiveTraceCollector
 from dotenv import load_dotenv
 
 from livekit.agents import (
@@ -196,66 +196,40 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="voice-agent")
 async def entrypoint(ctx: JobContext):
-
     session = AgentSession(
-
-        # -----------------------------
-        # STT
-        # -----------------------------
-
         stt=inference.STT(
             model="deepgram/nova-3",
             language="en",
         ),
-
         stt_context_options={
             "keyterm_detection": {
                 "enabled": True,
             }
         },
-
-        # -----------------------------
-        # LLM
-        # -----------------------------
-
         llm=inference.LLM(
             model="google/gemma-4-31b-it",
         ),
-
-        # -----------------------------
-        # TTS
-        # -----------------------------
-
         tts=inference.TTS(
             model="cartesia/sonic-3",
             voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
             language="en",
         ),
-
         expressive=True,
-
-        # -----------------------------
-        # TURN HANDLING
-        # -----------------------------
-
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
             preemptive_generation={
                 "enabled": True,
             },
         ),
-
-        # -----------------------------
-        # VAD
-        # -----------------------------
-
         vad=inference.VAD(),
     )
+
+    collector = LiveTraceCollector()
+    collector.attach(session)
 
     await session.start(
         agent=DefaultAgent(),
         room=ctx.room,
-
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
                 noise_cancellation=ai_coustics.audio_enhancement(
@@ -269,6 +243,5 @@ async def entrypoint(ctx: JobContext):
 # ============================================================
 # RUN
 # ============================================================
-
 if __name__ == "__main__":
     cli.run_app(server)
