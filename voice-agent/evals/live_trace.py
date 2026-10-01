@@ -21,8 +21,12 @@ class LiveTraceCollector:
         # call_id -> ToolTrace
         self.active_tools = {}
 
-        # Useful for measuring the whole turn later
+        # Used for measuring turn latency
         self.turn_started_at = None
+
+    # ========================================================
+    # ATTACH EVENTS
+    # ========================================================
 
     def attach(self, session):
         session.on(
@@ -57,9 +61,60 @@ class LiveTraceCollector:
 
         print("[TRACE] collector attached")
 
+    # ========================================================
+    # METRICS
+    # ========================================================
+
+    def record_stt_metrics(self, metrics):
+        if self.current_turn is None:
+            return
+
+        self.current_turn.stt_latency_ms = (
+            metrics.duration * 1000
+        )
+
+        print(
+            f"[TRACE] STT latency="
+            f"{self.current_turn.stt_latency_ms:.2f}ms"
+        )
+
+    def record_llm_metrics(self, metrics):
+        if self.current_turn is None:
+            return
+
+        self.current_turn.llm_ttft_ms = (
+            metrics.ttft * 1000
+        )
+
+        print(
+            f"[TRACE] LLM TTFT="
+            f"{self.current_turn.llm_ttft_ms:.2f}ms"
+        )
+
+    def record_tts_metrics(self, metrics):
+        if self.current_turn is None:
+            return
+
+        self.current_turn.tts_ttfb_ms = (
+            metrics.ttfb * 1000
+        )
+
+        print(
+            f"[TRACE] TTS TTFB="
+            f"{self.current_turn.tts_ttfb_ms:.2f}ms"
+        )
+
+    # ========================================================
+    # SESSION CLOSE
+    # ========================================================
+
     def on_close(self, event):
         print("[TRACE] session closed — saving trace")
         self.save()
+
+    # ========================================================
+    # USER TRANSCRIPT
+    # ========================================================
 
     def on_user_input_transcribed(self, event):
         print(
@@ -73,7 +128,9 @@ class LiveTraceCollector:
                 user_input=event.transcript
             )
 
-            self.trace.turns.append(self.current_turn)
+            self.trace.turns.append(
+                self.current_turn
+            )
 
             self.turn_started_at = time.perf_counter()
 
@@ -81,6 +138,10 @@ class LiveTraceCollector:
                 f"[TRACE] new turn "
                 f"user={event.transcript!r}"
             )
+
+    # ========================================================
+    # CONVERSATION ITEMS
+    # ========================================================
 
     def on_conversation_item_added(self, event):
         item = event.item
@@ -94,7 +155,12 @@ class LiveTraceCollector:
             print(f"[TRACE] role={item.role}")
 
             if str(item.role).lower() == "assistant":
-                content = getattr(item, "content", None)
+
+                content = getattr(
+                    item,
+                    "content",
+                    None,
+                )
 
                 if content:
                     texts = []
@@ -106,13 +172,25 @@ class LiveTraceCollector:
                         elif isinstance(part, str):
                             texts.append(part)
 
-                    if texts and self.current_turn is not None:
-                        self.current_turn.assistant_output = " ".join(texts)
+                    if (
+                        texts
+                        and self.current_turn is not None
+                    ):
+                        self.current_turn.assistant_output = (
+                            " ".join(texts)
+                        )
+
+                        # Mark the turn as completed
+                        self.current_turn.status = "completed"
 
                         print(
                             f"[TRACE] assistant="
                             f"{self.current_turn.assistant_output!r}"
                         )
+
+    # ========================================================
+    # AGENT STATE
+    # ========================================================
 
     def on_agent_state_changed(self, event):
         print(
@@ -120,11 +198,42 @@ class LiveTraceCollector:
             f"{event.old_state} -> {event.new_state}"
         )
 
+        if self.current_turn is None:
+            return
+
+        # First approximation of E2E latency:
+        #
+        # final user transcript
+        #        ↓
+        # agent starts speaking
+        #
+        if str(event.new_state).lower() == "speaking":
+
+            if self.turn_started_at is not None:
+
+                self.current_turn.e2e_latency_ms = (
+                    time.perf_counter()
+                    - self.turn_started_at
+                ) * 1000
+
+                print(
+                    f"[TRACE] E2E latency="
+                    f"{self.current_turn.e2e_latency_ms:.2f}ms"
+                )
+
+    # ========================================================
+    # USER STATE
+    # ========================================================
+
     def on_user_state_changed(self, event):
         print(
             f"[TRACE] user state "
             f"{event.old_state} -> {event.new_state}"
         )
+
+    # ========================================================
+    # TOOL EXECUTION
+    # ========================================================
 
     def on_function_tools_executed(self, event):
         print(
@@ -133,12 +242,19 @@ class LiveTraceCollector:
         )
 
         for function_call, function_output in event.zipped():
+
             arguments = function_call.arguments
 
             try:
                 arguments = json.loads(arguments)
-            except (json.JSONDecodeError, TypeError):
-                arguments = {"raw": arguments}
+
+            except (
+                json.JSONDecodeError,
+                TypeError,
+            ):
+                arguments = {
+                    "raw": arguments
+                }
 
             tool_trace = ToolTrace(
                 name=function_call.name,
@@ -153,7 +269,9 @@ class LiveTraceCollector:
             )
 
             if self.current_turn is not None:
-                self.current_turn.tools.append(tool_trace)
+                self.current_turn.tools.append(
+                    tool_trace
+                )
 
             print(
                 f"[TRACE] tool completed "
@@ -163,20 +281,37 @@ class LiveTraceCollector:
                 f"output={function_output.output!r}"
             )
 
+    # ========================================================
+    # SAVE TRACE
+    # ========================================================
+
     def save(self):
         self.trace.status = "completed"
 
-        RESULTS_DIR.mkdir(exist_ok=True)
+        RESULTS_DIR.mkdir(
+            exist_ok=True
+        )
 
-        output = RESULTS_DIR / "live_trace.json"
+        output = (
+            RESULTS_DIR
+            / "live_trace.json"
+        )
 
         data = self.trace.to_dict()
 
-        data["trace_started_at"] = self.trace_started_at
+        data["trace_started_at"] = (
+            self.trace_started_at
+        )
 
         with open(output, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(
+                data,
+                f,
+                indent=2,
+            )
 
-        print(f"[TRACE] saved → {output}")
+        print(
+            f"[TRACE] saved → {output}"
+        )
 
         return output

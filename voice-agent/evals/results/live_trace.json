@@ -1,15 +1,71 @@
 {
-  "user_input": "What time is it?",
-  "assistant_output": "<expr type=\"expression\" label=\"neutral\"/> It is currently ten thirty two.",
-  "tools": [],
-  "latency": {
-    "stt_ms": null,
-    "llm_ttft_ms": null,
-    "tts_ttfb_ms": null,
-    "e2e_ms": null
-  },
-  "interrupted": false,
+  "turns": [
+    {
+      "user_input": "What time is in Tokyo?",
+      "assistant_output": "<expr type=\"expression\" label=\"content\"/> It's one thirty eight in the afternoon in Tokyo.",
+      "tools": [
+        {
+          "name": "get_time",
+          "arguments": {
+            "city": "Tokyo"
+          },
+          "output": "01:38 PM",
+          "latency_ms": null,
+          "success": true,
+          "error": null
+        }
+      ],
+      "latency": {
+        "stt_ms": 0.0,
+        "llm_ttft_ms": 801.7741320072673,
+        "tts_ttfb_ms": 209.14043299853802,
+        "e2e_ms": 2340.34625600907
+      },
+      "interrupted": false,
+      "status": "completed",
+      "error": null
+    },
+    {
+      "user_input": "What time is in and done?",
+      "assistant_output": "",
+      "tools": [],
+      "latency": {
+        "stt_ms": 0.0,
+        "llm_ttft_ms": 1057.7593089838047,
+        "tts_ttfb_ms": 259.99130299896933,
+        "e2e_ms": 2488.1420439924113
+      },
+      "interrupted": false,
+      "status": "running",
+      "error": null
+    },
+    {
+      "user_input": "What time is it in London?",
+      "assistant_output": "<expr type=\"expression\" label=\"content\"/> It's five thirty eight in the morning in London.",
+      "tools": [
+        {
+          "name": "get_time",
+          "arguments": {
+            "city": "London"
+          },
+          "output": "05:38 AM",
+          "latency_ms": null,
+          "success": true,
+          "error": null
+        }
+      ],
+      "latency": {
+        "stt_ms": 0.0,
+        "llm_ttft_ms": 651.2987439928111,
+        "tts_ttfb_ms": 200.8456049952656,
+        "e2e_ms": 1877.9830349958502
+      },
+      "interrupted": false,
+      "status": "completed",
+      "error": null
+    }
+  ],
   "status": "completed",
   "error": null,
-  "trace_started_at": "2026-10-01T04:55:28.926485"
+  "trace_started_at": "2026-10-01T10:08:12.863073"
 }
