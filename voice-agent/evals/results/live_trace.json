@@ -1,64 +1,80 @@
 {
   "turns": [
     {
-      "user_input": "What time is in Tokyo?",
-      "assistant_output": "<expr type=\"expression\" label=\"content\"/> It's one thirty eight in the afternoon in Tokyo.",
-      "tools": [
-        {
-          "name": "get_time",
-          "arguments": {
-            "city": "Tokyo"
-          },
-          "output": "01:38 PM",
-          "latency_ms": null,
-          "success": true,
-          "error": null
-        }
-      ],
-      "latency": {
-        "stt_ms": 0.0,
-        "llm_ttft_ms": 801.7741320072673,
-        "tts_ttfb_ms": 209.14043299853802,
-        "e2e_ms": 2340.34625600907
-      },
-      "interrupted": false,
-      "status": "completed",
-      "error": null
-    },
-    {
-      "user_input": "What time is in and done?",
-      "assistant_output": "",
-      "tools": [],
-      "latency": {
-        "stt_ms": 0.0,
-        "llm_ttft_ms": 1057.7593089838047,
-        "tts_ttfb_ms": 259.99130299896933,
-        "e2e_ms": 2488.1420439924113
-      },
-      "interrupted": false,
-      "status": "running",
-      "error": null
-    },
-    {
       "user_input": "What time is it in London?",
-      "assistant_output": "<expr type=\"expression\" label=\"content\"/> It's five thirty eight in the morning in London.",
+      "assistant_output": "<expr type=\"expression\" label=\"content\"/> It's seven fifty two p m in London.",
       "tools": [
         {
           "name": "get_time",
           "arguments": {
             "city": "London"
           },
-          "output": "05:38 AM",
+          "output": "07:52 PM",
           "latency_ms": null,
           "success": true,
           "error": null
         }
       ],
       "latency": {
-        "stt_ms": 0.0,
-        "llm_ttft_ms": 651.2987439928111,
-        "tts_ttfb_ms": 200.8456049952656,
-        "e2e_ms": 1877.9830349958502
+        "stt_processing_ms": null,
+        "eot_latency_ms": null,
+        "llm_ttft_ms": 1001.1610910005402,
+        "tts_ttfb_ms": 179.92076600057771,
+        "e2e_ms": 2387.8051089996006
+      },
+      "interruption": {
+        "interrupted": false,
+        "overlapping_speech": false,
+        "false_interruption": false,
+        "detection_delay_ms": null,
+        "agent_speech_duration_ms": null,
+        "recovered": false
+      },
+      "interrupted": false,
+      "status": "completed",
+      "error": null
+    },
+    {
+      "user_input": "Time is Gen Sophia?",
+      "assistant_output": "<expr type=\"expression\" label=\"confused\"/> I'm sorry, <expr type=\"break\" label=\"200ms\"/> I'm not sure I understand. <expr type=\"expression\" label=\"curious\"/> Who is Gen Sophia?",
+      "tools": [],
+      "latency": {
+        "stt_processing_ms": null,
+        "eot_latency_ms": null,
+        "llm_ttft_ms": 1262.1212400008517,
+        "tts_ttfb_ms": 183.2170590023452,
+        "e2e_ms": 1667.3592949991871
+      },
+      "interruption": {
+        "interrupted": false,
+        "overlapping_speech": false,
+        "false_interruption": false,
+        "detection_delay_ms": null,
+        "agent_speech_duration_ms": null,
+        "recovered": false
+      },
+      "interrupted": false,
+      "status": "completed",
+      "error": null
+    },
+    {
+      "user_input": "Can you tell me about Japan?",
+      "assistant_output": "<expr type=\"expression\" label=\"content\"/> Japan's an island country in East Asia known for blending ancient traditions with futuristic technology. <expr type=\"expression\" label=\"happy\"/> It's famous for its beautiful landscapes, delicious food, and vibrant cities like Tokyo and Kyoto. <expr type=\"expression\" label=\"curious\"/> Is there something specific you'd like to know about it?",
+      "tools": [],
+      "latency": {
+        "stt_processing_ms": null,
+        "eot_latency_ms": null,
+        "llm_ttft_ms": 1203.127543998562,
+        "tts_ttfb_ms": 185.48631600060617,
+        "e2e_ms": 1635.6365620013094
+      },
+      "interruption": {
+        "interrupted": false,
+        "overlapping_speech": false,
+        "false_interruption": false,
+        "detection_delay_ms": null,
+        "agent_speech_duration_ms": null,
+        "recovered": false
       },
       "interrupted": false,
       "status": "completed",
@@ -67,5 +83,5 @@
   ],
   "status": "completed",
   "error": null,
-  "trace_started_at": "2026-10-01T10:08:12.863073"
+  "trace_started_at": "2026-10-03T00:22:23.642165"
 }

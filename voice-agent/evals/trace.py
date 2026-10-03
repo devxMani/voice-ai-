@@ -12,18 +12,46 @@ class ToolTrace:
 
 
 @dataclass
+class InterruptionTrace:
+    interrupted: bool = False
+    overlapping_speech: bool = False
+    false_interruption: bool = False
+
+    detection_delay_ms: float | None = None
+    agent_speech_duration_ms: float | None = None
+
+    recovered: bool = False
+
+    def to_dict(self):
+        return {
+            "interrupted": self.interrupted,
+            "overlapping_speech": self.overlapping_speech,
+            "false_interruption": self.false_interruption,
+            "detection_delay_ms": self.detection_delay_ms,
+            "agent_speech_duration_ms": self.agent_speech_duration_ms,
+            "recovered": self.recovered,
+        }
+
+
+@dataclass
 class TurnTrace:
     user_input: str = ""
     assistant_output: str = ""
 
     tools: list[ToolTrace] = field(default_factory=list)
 
-    stt_latency_ms: float | None = None
+    stt_processing_ms: float | None = None
+    eot_latency_ms: float | None = None
     llm_ttft_ms: float | None = None
     tts_ttfb_ms: float | None = None
     e2e_latency_ms: float | None = None
 
+    interruption: InterruptionTrace = field(
+        default_factory=InterruptionTrace
+    )
+
     interrupted: bool = False
+
     status: str = "running"
     error: str | None = None
 
@@ -45,11 +73,14 @@ class TurnTrace:
             ],
 
             "latency": {
-                "stt_ms": self.stt_latency_ms,
+                "stt_processing_ms": self.stt_processing_ms,
+                "eot_latency_ms": self.eot_latency_ms,
                 "llm_ttft_ms": self.llm_ttft_ms,
                 "tts_ttfb_ms": self.tts_ttfb_ms,
                 "e2e_ms": self.e2e_latency_ms,
             },
+
+            "interruption": self.interruption.to_dict(),
 
             "interrupted": self.interrupted,
             "status": self.status,

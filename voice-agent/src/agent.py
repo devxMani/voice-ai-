@@ -1,5 +1,6 @@
 import time
 import logging
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -24,6 +25,7 @@ from livekit.agents.metrics import (
     LLMMetrics,
     TTSMetrics,
     STTMetrics,
+    EOUMetrics,
 )
 
 from livekit.plugins import ai_coustics
@@ -117,7 +119,6 @@ You are interacting with the user via voice, and must apply the following rules 
                 )
 
             current_time = datetime.now(ZoneInfo(timezone))
-
             formatted_time = current_time.strftime("%I:%M %p")
 
             return formatted_time
@@ -153,6 +154,23 @@ You are interacting with the user via voice, and must apply the following rules 
             self.collector.record_stt_metrics(metrics)
 
         # -----------------------------
+        # EOU metrics
+        # -----------------------------
+
+        def on_eou_metrics(metrics: EOUMetrics):
+
+            logger.info(
+                "[EOU] end_of_utterance=%.3fs "
+                "transcription_delay=%.3fs "
+                "user_turn_completed_delay=%.3fs",
+                metrics.end_of_utterance_delay,
+                metrics.transcription_delay,
+                metrics.on_user_turn_completed_delay,
+            )
+
+            self.collector.record_eou_metrics(metrics)
+
+        # -----------------------------
         # LLM metrics
         # -----------------------------
 
@@ -183,7 +201,7 @@ You are interacting with the user via voice, and must apply the following rules 
             self.collector.record_tts_metrics(metrics)
 
         # -----------------------------
-        # Register metric listeners
+        # Register STT listener
         # -----------------------------
 
         self.session.stt.on(
@@ -191,10 +209,39 @@ You are interacting with the user via voice, and must apply the following rules 
             on_stt_metrics,
         )
 
+        # -----------------------------
+        # Register EOU listener
+        # -----------------------------
+        #
+        # EOU metrics are emitted by the session's
+        # metrics_collected event.
+        #
+        # We only forward EOUMetrics and ignore
+        # other metric types here.
+        #
+
+        def on_session_metrics(event):
+
+            if isinstance(event.metrics, EOUMetrics):
+                on_eou_metrics(event.metrics)
+
+        self.session.on(
+            "metrics_collected",
+            on_session_metrics,
+        )
+
+        # -----------------------------
+        # Register LLM listener
+        # -----------------------------
+
         self.session.llm.on(
             "metrics_collected",
             on_llm_metrics,
         )
+
+        # -----------------------------
+        # Register TTS listener
+        # -----------------------------
 
         self.session.tts.on(
             "metrics_collected",
@@ -222,6 +269,7 @@ server = AgentServer()
 async def entrypoint(ctx: JobContext):
 
     session = AgentSession(
+
         stt=inference.STT(
             model="deepgram/nova-3",
             language="en",
@@ -256,13 +304,22 @@ async def entrypoint(ctx: JobContext):
         vad=inference.VAD(),
     )
 
-    # Create trace collector
+    # ========================================================
+    # CREATE TRACE COLLECTOR
+    # ========================================================
+
     collector = LiveTraceCollector()
 
-    # Attach trace events to session
+    # ========================================================
+    # ATTACH TRACE EVENTS TO SESSION
+    # ========================================================
+
     collector.attach(session)
 
-    # Start session
+    # ========================================================
+    # START SESSION
+    # ========================================================
+
     await session.start(
         agent=DefaultAgent(collector),
         room=ctx.room,
@@ -270,8 +327,8 @@ async def entrypoint(ctx: JobContext):
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
                 noise_cancellation=ai_coustics.audio_enhancement(
-                    model=ai_coustics.EnhancerModel.QUAIL_VF_S,
-                ),
+                    model=ai_coustics.EnhancerModel.QUAIL_VF_S
+                )
             ),
         ),
     )
@@ -283,3 +340,4 @@ async def entrypoint(ctx: JobContext):
 
 if __name__ == "__main__":
     cli.run_app(server)
+    
