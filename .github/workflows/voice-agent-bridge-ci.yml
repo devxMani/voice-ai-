@@ -1,0 +1,44 @@
+name: Voice Agent Bridge CI
+
+on:
+  push:
+    paths:
+      - "voice-agent/src/agent.py"
+      - "voice-agent/evals/**"
+      - "voice-agent/tests/**"
+      - "voice-agent/pyproject.toml"
+      - "voice-agent/.env.example"
+      - ".github/workflows/voice-agent-bridge-ci.yml"
+  pull_request:
+    paths:
+      - "voice-agent/src/agent.py"
+      - "voice-agent/evals/**"
+      - "voice-agent/tests/**"
+      - "voice-agent/pyproject.toml"
+      - "voice-agent/.env.example"
+      - ".github/workflows/voice-agent-bridge-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: voice-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "voice-agent/pyproject.toml"
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Run offline bridge contract tests
+        run: uv run pytest tests/test_pixi_bridge.py
+      - name: Lint bridge and contract tests
+        run: uv run ruff check evals/pixi_bridge.py tests/test_pixi_bridge.py
