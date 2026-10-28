@@ -36,6 +36,7 @@ MAX_TURNS = 12
 MAX_TURN_CHARS = 4_000
 MAX_CANDIDATE_CHARS = 4_000
 MAX_CONCURRENT_EVALUATIONS = 2
+MAX_EVALUATION_SECONDS = 25.0
 _RUN_SLOTS = BoundedSemaphore(MAX_CONCURRENT_EVALUATIONS)
 
 
@@ -275,12 +276,21 @@ async def run_live_session(
     )
     collector.attach(session)
     started = time.perf_counter()
+    deadline = started + float(os.getenv("VOICE_BRIDGE_TIMEOUT_SECONDS", str(MAX_EVALUATION_SECONDS)))
+    if not 1.0 <= deadline - started <= 30.0:
+        raise BridgeRequestError(503, "VOICE_BRIDGE_TIMEOUT_SECONDS must be between 1 and 30.")
     try:
-        await session.start(agent=agent)
+        await asyncio.wait_for(session.start(agent=agent), timeout=max(0.1, deadline - time.perf_counter()))
         for user_input in turns:
             collector.begin_turn(user_input)
             turn_started = time.perf_counter()
-            result = await session.run(user_input=user_input, input_modality="text")
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                raise TimeoutError("Pixi scenario exceeded the configured bridge deadline.")
+            result = await asyncio.wait_for(
+                session.run(user_input=user_input, input_modality="text"),
+                timeout=remaining,
+            )
             duration_ms = (time.perf_counter() - turn_started) * 1000
             collector.finish_turn(duration_ms)
             exception = getattr(result, "exception", None)
@@ -288,7 +298,7 @@ async def run_live_session(
                 exception = exception()
             if exception:
                 if collector.current_turn is not None:
-                    collector.current_turn.error = str(exception)
+                    collector.current_turn.error = "LiveKit AgentSession returned an error."
                     collector.current_turn.status = "inconclusive"
                 raise RuntimeError("LiveKit AgentSession failed to complete a scripted turn.") from exception
 
@@ -316,7 +326,7 @@ async def run_live_session(
             "transcript": transcript,
             "latency_ms": max(latencies) if latencies else elapsed_ms,
             "tools_called": tools_called,
-            "trace": trace,
+            "voice_trace": trace,
         }
     finally:
         await session.close()
@@ -450,8 +460,8 @@ class PixiBridgeHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._write_json(400, {"detail": "Request body must be valid JSON."})
         except Exception:
-            logger.exception("LiveKit bridge evaluation failed.")
-            self._write_json(502, {"detail": "LiveKit AgentSession evaluation failed; no result was accepted."})
+            logger.error("LiveKit bridge evaluation failed (%s).", type(__import__("sys").exc_info()[1]).__name__)
+            self._write_json(502, {"detail": "LiveKit AgentSession evaluation failed or exceeded its deadline; no result was accepted."})
 
 
 class ThreadingPixiServer(ThreadingHTTPServer):
