@@ -42,9 +42,15 @@ load_dotenv(".env.local")
 
 class DefaultAgent(Agent):
 
-    def __init__(self, collector):
-        super().__init__(
-            instructions="""You are a friendly, reliable voice assistant that answers questions, explains topics, and completes tasks with available tools.
+    def __init__(
+        self,
+        collector,
+        *,
+        enable_country_info: bool = False,
+        prompt_append: str | None = None,
+        suppress_greeting: bool = False,
+    ):
+        instructions = """You are a friendly, reliable voice assistant that answers questions, explains topics, and completes tasks with available tools.
 
 # Output rules
 
@@ -68,6 +74,7 @@ You are interacting with the user via voice, and must apply the following rules 
 # Tools
 
 - Use available tools when they are useful for answering the user's request.
+- For factual questions about a country's basic facts, call get_country_info instead of answering from memory. If the lookup fails, explain that it failed.
 - Collect required inputs before calling a tool.
 - Never invent tool results.
 - After a tool returns, explain the result naturally to the user.
@@ -78,10 +85,16 @@ You are interacting with the user via voice, and must apply the following rules 
 - Stay within safe, lawful, and appropriate use.
 - Decline harmful or out-of-scope requests.
 - For medical, legal, or financial topics, provide general information only.
-- Protect privacy and minimize sensitive data.""",
-        )
-
+- Protect privacy and minimize sensitive data."""
+        if prompt_append:
+            instructions += (
+                "\n\n# Experimental candidate instructions (isolated evaluation only)\n"
+                + prompt_append
+            )
+        super().__init__(instructions=instructions)
         self.collector = collector
+        self.enable_country_info = enable_country_info
+        self.suppress_greeting = suppress_greeting
 
     # ========================================================
     # TOOL: GET TIME
@@ -125,12 +138,50 @@ You are interacting with the user via voice, and must apply the following rules 
 
         finally:
             latency_ms = (time.perf_counter() - start) * 1000
+            record_latency = getattr(self.collector, "record_tool_latency", None)
+            if callable(record_latency):
+                record_latency("get_time", latency_ms)
 
             logger.info(
                 "[TRACE] tool=get_time city=%s latency=%.2fms",
                 city,
                 latency_ms,
             )
+
+    # ========================================================
+    # TOOL: GET COUNTRY INFO (controlled candidate capability)
+    # ========================================================
+
+    @function_tool()
+    async def get_country_info(
+        self,
+        context: RunContext,
+        country: str,
+    ) -> str:
+        """Return basic facts about a supported country."""
+        start = time.perf_counter()
+        try:
+            # This capability is disabled in the baseline version. A Pixi candidate
+            # can enable only this allow-listed operation; proposed_change is never code.
+            if not self.enable_country_info:
+                raise RuntimeError("Country information lookup is disabled in this agent version.")
+
+            countries = {
+                "japan": "Japan is an island country in East Asia. Its capital is Tokyo.",
+                "india": "India is a country in South Asia. Its capital is New Delhi.",
+                "canada": "Canada is a country in North America. Its capital is Ottawa.",
+                "united kingdom": "The United Kingdom is a country in Europe. Its capital is London.",
+            }
+            result = countries.get(country.strip().casefold())
+            if result is None:
+                raise ValueError(f"I do not have a country entry for {country.strip()}.")
+            return result
+        finally:
+            latency_ms = (time.perf_counter() - start) * 1000
+            record_latency = getattr(self.collector, "record_tool_latency", None)
+            if callable(record_latency):
+                record_latency("get_country_info", latency_ms)
+            logger.info("[TRACE] tool=get_country_info country=%s latency=%.2fms", country, latency_ms)
 
     # ========================================================
     # SESSION ENTRY
@@ -252,10 +303,11 @@ You are interacting with the user via voice, and must apply the following rules 
         # Initial greeting
         # -----------------------------
 
-        await self.session.generate_reply(
-            instructions="Greet the user and offer your assistance.",
-            allow_interruptions=True,
-        )
+        if not self.suppress_greeting:
+            await self.session.generate_reply(
+                instructions="Greet the user and offer your assistance.",
+                allow_interruptions=True,
+            )
 
 
 # ============================================================

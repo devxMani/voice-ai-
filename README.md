@@ -21,8 +21,8 @@ This project is under active development and is being grown into a general voice
 | Tool-call tracing (name, arguments, output, latency, success) | Working |
 | Interruption tracking (6 signals per turn) | Implemented |
 | Scenario specs (4) and pass/fail evaluator (3 checks) | Implemented |
-| Scenario runner that drives the live agent | **Placeholder.** It currently writes `not_run` results. Connecting it is the next milestone |
-| `get_country_info` tool used by 3 of the 4 scenarios | Not implemented yet |
+| Scripted scenario runner | Live `AgentSession.run` path implemented; uses the configured LiveKit model/tool stack with text turns. Not an audio/STT or interruption test |
+| `get_country_info` capability | Implemented behind an off-by-default baseline flag; a safe candidate operation can enable it for isolated evaluation |
 | Fault injection (tool timeouts, slow tools) | Planned |
 | Multi-run aggregation (p50 / p95), provider comparison, reports | Planned |
 
@@ -84,20 +84,72 @@ All 3 turns finished inside the 3,000 ms budget used by the scenario specs. 1 to
 **Prerequisites:** Python 3.10+, [uv](https://docs.astral.sh/uv/), and a [LiveKit Cloud](https://cloud.livekit.io) project.
 
 ```bash
-git clone https://github.com/devxMani/voice-ai-.git
-cd voice-ai-/voice-agent
+git clone https://github.com/devxMani/voice-reliability-lab.git
+cd voice-reliability-lab/voice-agent
 
 uv sync
 
-# Credentials: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
-cp .env.example .env.local      # the agent loads .env.local
+# Fill in LiveKit credentials and bridge settings in this local-only file.
+cp .env.example .env.local
 
-uv run python src/agent.py download-files   # one-time model downloads
-uv run python src/agent.py console          # talk to the agent in your terminal
-uv run python src/agent.py dev              # run as a LiveKit worker
+uv run python src/agent.py download-files   # optional one-time model downloads
+uv run python src/agent.py console          # interactive console session
+uv run python src/agent.py dev              # regular LiveKit worker for real audio
 ```
 
-When a session ends, the collector writes the trace to `evals/results/live_trace.json`.
+When a regular room session ends, the existing collector writes `evals/results/live_trace.json`.
+
+The saved-scenario CLI now invokes the same LiveKit session stack instead of writing placeholder `not_run` records. It makes real model/tool calls, so run it only when you intend to incur the associated provider usage:
+
+```bash
+cd voice-agent
+uv run python -m evals.runner                     # baseline run of saved scenarios
+uv run python -m evals.runner --scenario "Japan country lookup"
+uv run python -m evals.runner --candidate-operation enable_tool:get_country_info
+```
+
+Results are saved to `evals/results/latest.json`. The tool-timeout scenario is marked `not_applicable` until a dedicated timeout fault injector is configured; normal success is not mislabelled as a timeout test. Missing latency or failed model/session output remains inconclusive rather than a pass.
+
+### Pixi bridge (local scripted evaluation)
+
+The Pixi bridge exposes `POST /pixi/evaluate` on loopback only. It creates an in-process LiveKit `AgentSession`, submits the scenario's text turns to the real configured LiveKit agent stack, and returns its actual assistant transcript, tool calls, response timing, and nested trace. It uses the same `DefaultAgent` instructions and tools; it does not create a fake transcript or call a production room.
+
+Set these values in `.env.local` before starting it:
+
+- `VOICE_AGENT_VERSION`: immutable Git commit SHA or image/config digest for the baseline source/build. This must change when that build changes.
+- `VOICE_BRIDGE_TOKEN`: random secret of at least 32 characters.
+- `VOICE_BRIDGE_HOST=127.0.0.1` and `VOICE_BRIDGE_PORT=8787`.
+- `VOICE_BRIDGE_TIMEOUT_SECONDS=25` to bound each scenario request.
+
+Start the bridge in a separate terminal:
+
+```bash
+cd voice-agent
+uv run python -m evals.pixi_bridge
+```
+
+Configure Pixi's local backend `.env` with the same token and endpoint:
+
+```dotenv
+PIXI_AGENT_ENDPOINT=http://127.0.0.1:8787/pixi/evaluate
+PIXI_AGENT_API_KEY=use-the-same-random-token-as-VOICE_BRIDGE_TOKEN
+PIXI_AGENT_TIMEOUT_SECONDS=30
+```
+
+Candidate `proposed_change` values are deliberately allow-listed for this first adapter:
+- `enable_tool:get_country_info` enables the supported-country lookup capability for that candidate version.
+- `prompt_append: <instruction text>` appends a bounded instruction overlay for isolated evaluation.
+
+The bridge never executes arbitrary code from a candidate proposal. Its reported candidate version is derived from the immutable baseline version, candidate ID, and normalized candidate configuration, so repeated target/regression runs identify the same candidate version.
+
+**Important scope limit:** Pixi's current bridge drives scripted **text input** through LiveKit's real `AgentSession.run`. This tests live model/tool behavior and text-input-to-response timing, but it does not claim to measure acoustic STT, VAD/end-of-utterance, real caller audio, or barge-in latency. Keep the bridge local, use non-production tools/data, and do not expose it publicly. Transport/model failures return an error rather than passing a test.
+
+Run bridge contract tests without provider credentials:
+
+```bash
+cd voice-agent
+uv run pytest tests/test_pixi_bridge.py
+```
 
 ### Docker
 
@@ -134,8 +186,10 @@ Current scenarios: Japan country lookup, Tokyo time lookup, tool timeout, unknow
 The goal is a proper, provider-agnostic **voice AI benchmark harness**.
 
 **1. Make the runner real**
-- [ ] Drive the live agent from `evals/runner.py` with scripted caller turns and record real results
-- [ ] Implement `get_country_info` so all four scenarios can execute
+- [x] Drive the live agent from `evals/runner.py` with scripted text turns through `AgentSession.run` and record real model/tool results
+- [x] Add `get_country_info` behind a disabled-by-default baseline flag and a safe candidate operation
+- [x] Add an authenticated, loopback-only Pixi HTTP bridge with bounded request time, protocol validation, candidate-version provenance, and structured nested trace output
+- [x] Add offline bridge contract and HTTP auth tests in CI
 - [ ] Add fault injection: tool timeouts, slow tools, malformed tool output
 - [ ] Merge the duplicate trace-collector code paths in `evals/live_trace.py`
 
