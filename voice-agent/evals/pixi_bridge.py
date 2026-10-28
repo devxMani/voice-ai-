@@ -35,6 +35,8 @@ MAX_BODY_BYTES = 1_000_000
 MAX_TURNS = 12
 MAX_TURN_CHARS = 4_000
 MAX_CANDIDATE_CHARS = 4_000
+MAX_CONCURRENT_EVALUATIONS = 2
+_RUN_SLOTS = BoundedSemaphore(MAX_CONCURRENT_EVALUATIONS)
 
 
 class BridgeRequestError(Exception):
@@ -427,14 +429,20 @@ class PixiBridgeHandler(BaseHTTPRequestHandler):
             envelope = evaluate_bridge_request(payload)
             execution = envelope.pop("_execution")
             candidate_id = envelope.pop("_execution_candidate_id")
-            result = asyncio.run(
-                run_live_session(
-                    turns=execution["turns"],
-                    candidate_id=candidate_id,
-                    operation=execution["operation"],
-                    agent_version=envelope["agent_version"],
+            if not _RUN_SLOTS.acquire(blocking=False):
+                self._write_json(429, {"detail": "The bridge is at its concurrent evaluation limit; retry later."})
+                return
+            try:
+                result = asyncio.run(
+                    run_live_session(
+                        turns=execution["turns"],
+                        candidate_id=candidate_id,
+                        operation=execution["operation"],
+                        agent_version=envelope["agent_version"],
+                    )
                 )
-            )
+            finally:
+                _RUN_SLOTS.release()
             envelope.update(result)
             self._write_json(200, envelope)
         except BridgeRequestError as exc:
