@@ -106,7 +106,7 @@ def test_request_validation_rejects_wrong_protocol_and_unbounded_turns(live_env:
 
 def test_trace_collector_records_text_output_tools_and_latency() -> None:
     collector = bridge.RequestTraceCollector()
-    turn = collector.begin_turn("Tell me about Japan.")
+    collector.begin_turn("Tell me about Japan.")
     collector.record_tool_latency("get_country_info", 1.25)
     function_call = SimpleNamespace(
         name="get_country_info",
