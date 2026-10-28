@@ -138,6 +138,9 @@ You are interacting with the user via voice, and must apply the following rules 
 
         finally:
             latency_ms = (time.perf_counter() - start) * 1000
+            record_latency = getattr(self.collector, "record_tool_latency", None)
+            if callable(record_latency):
+                record_latency("get_time", latency_ms)
 
             logger.info(
                 "[TRACE] tool=get_time city=%s latency=%.2fms",
