@@ -39,6 +39,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
       - name: Run offline bridge contract tests
+        env:
+          PYTHONPATH: .
         run: uv run pytest tests/test_pixi_bridge.py
       - name: Lint bridge and contract tests
         run: uv run ruff check evals/pixi_bridge.py tests/test_pixi_bridge.py
