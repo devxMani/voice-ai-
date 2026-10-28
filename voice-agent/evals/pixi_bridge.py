@@ -336,7 +336,7 @@ async def run_live_session(
     finally:
         try:
             await session.close()
-        except Exception as exc:  # noqa: BLE001 - cleanup errors must not leak provider details
+        except Exception as exc:
             logger.warning("Could not close a LiveKit evaluation session (%s).", type(exc).__name__)
 
 
@@ -405,9 +405,9 @@ class PixiBridgeHandler(BaseHTTPRequestHandler):
     server_version = "VoiceReliabilityPixiBridge/0.1"
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, format: str, *args: Any) -> None:
+    def log_message(self, format_string: str, *args: Any) -> None:
         # Do not log transcript bodies, bearer credentials, or upstream errors.
-        logger.info("bridge request: " + format, *args)
+        logger.info("bridge request: " + format_string, *args)
 
     def _write_json(self, status_code: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -467,7 +467,7 @@ class PixiBridgeHandler(BaseHTTPRequestHandler):
             self._write_json(exc.status_code, {"detail": exc.detail})
         except json.JSONDecodeError:
             self._write_json(400, {"detail": "Request body must be valid JSON."})
-        except Exception as exc:  # noqa: BLE001 - do not return provider exception bodies to clients
+        except Exception as exc:
             logger.error("LiveKit bridge evaluation failed (%s).", type(exc).__name__)
             self._write_json(502, {"detail": "LiveKit AgentSession evaluation failed or exceeded its deadline; no result was accepted."})
 
