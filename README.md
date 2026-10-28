@@ -21,8 +21,8 @@ This project is under active development and is being grown into a general voice
 | Tool-call tracing (name, arguments, output, latency, success) | Working |
 | Interruption tracking (6 signals per turn) | Implemented |
 | Scenario specs (4) and pass/fail evaluator (3 checks) | Implemented |
-| Scenario runner that drives the live agent | **Placeholder.** It currently writes `not_run` results. Connecting it is the next milestone |
-| `get_country_info` tool used by 3 of the 4 scenarios | Not implemented yet |
+| Scripted scenario runner | Live `AgentSession.run` path implemented; uses the configured LiveKit model/tool stack with text turns. Not an audio/STT or interruption test |
+| `get_country_info` capability | Implemented behind an off-by-default baseline flag; a safe candidate operation can enable it for isolated evaluation |
 | Fault injection (tool timeouts, slow tools) | Planned |
 | Multi-run aggregation (p50 / p95), provider comparison, reports | Planned |
 
@@ -98,6 +98,17 @@ uv run python src/agent.py dev              # regular LiveKit worker for real au
 ```
 
 When a regular room session ends, the existing collector writes `evals/results/live_trace.json`.
+
+The saved-scenario CLI now invokes the same LiveKit session stack instead of writing placeholder `not_run` records. It makes real model/tool calls, so run it only when you intend to incur the associated provider usage:
+
+```bash
+cd voice-agent
+uv run python -m evals.runner                     # baseline run of saved scenarios
+uv run python -m evals.runner --scenario "Japan country lookup"
+uv run python -m evals.runner --candidate-operation enable_tool:get_country_info
+```
+
+Results are saved to `evals/results/latest.json`. The tool-timeout scenario is marked `not_applicable` until a dedicated timeout fault injector is configured; normal success is not mislabelled as a timeout test. Missing latency or failed model/session output remains inconclusive rather than a pass.
 
 ### Pixi bridge (local scripted evaluation)
 
@@ -175,8 +186,10 @@ Current scenarios: Japan country lookup, Tokyo time lookup, tool timeout, unknow
 The goal is a proper, provider-agnostic **voice AI benchmark harness**.
 
 **1. Make the runner real**
-- [ ] Drive the live agent from `evals/runner.py` with scripted caller turns and record real results
-- [ ] Implement `get_country_info` so all four scenarios can execute
+- [x] Drive the live agent from `evals/runner.py` with scripted text turns through `AgentSession.run` and record real model/tool results
+- [x] Add `get_country_info` behind a disabled-by-default baseline flag and a safe candidate operation
+- [x] Add an authenticated, loopback-only Pixi HTTP bridge with bounded request time, protocol validation, candidate-version provenance, and structured nested trace output
+- [x] Add offline bridge contract and HTTP auth tests in CI
 - [ ] Add fault injection: tool timeouts, slow tools, malformed tool output
 - [ ] Merge the duplicate trace-collector code paths in `evals/live_trace.py`
 
