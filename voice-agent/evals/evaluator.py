@@ -1,34 +1,42 @@
-def evaluate_trace(trace, scenario):
-    failures = []
+"""Evaluate observable run evidence against a scenario's explicit checks."""
 
-    # 1. Did the scenario actually run?
+from __future__ import annotations
+
+from typing import Any
+
+
+def evaluate_trace(trace: dict[str, Any], scenario: dict[str, Any]) -> dict[str, Any]:
+    failures: list[str] = []
+    inconclusive: list[str] = []
+
     if trace.get("status") != "completed":
-        failures.append("Scenario did not complete")
+        inconclusive.append("Scenario did not complete with a usable trace.")
 
-    # 2. Did the expected tool run?
     expected_tool = scenario.get("expected_tool")
-    actual_tool = trace.get("tool_called")
+    if expected_tool:
+        actual_tools = trace.get("tools_called")
+        if not isinstance(actual_tools, list):
+            legacy_tool = trace.get("tool_called")
+            actual_tools = [legacy_tool] if legacy_tool else []
+        if expected_tool not in actual_tools:
+            failures.append(
+                f"Expected tool '{expected_tool}', observed {actual_tools or 'no tool calls'}."
+            )
 
-    if expected_tool and actual_tool != expected_tool:
-        failures.append(
-            f"Expected tool '{expected_tool}', got '{actual_tool}'"
-        )
-
-    # 3. Did it stay within latency budget?
     max_latency = scenario.get("max_latency_ms")
     actual_latency = trace.get("latency_ms")
+    if max_latency is not None:
+        if actual_latency is None:
+            inconclusive.append("Latency evidence is unavailable.")
+        elif actual_latency > max_latency:
+            failures.append(
+                f"Latency {actual_latency:.1f}ms exceeded the {max_latency}ms limit."
+            )
 
-    if (
-        max_latency is not None
-        and actual_latency is not None
-        and actual_latency > max_latency
-    ):
-        failures.append(
-            f"Latency {actual_latency}ms exceeded "
-            f"limit {max_latency}ms"
-        )
-
+    outcome = "failed" if failures else "inconclusive" if inconclusive else "passed"
     return {
-        "passed": len(failures) == 0,
+        "passed": outcome == "passed",
+        "outcome": outcome,
         "failures": failures,
+        "inconclusive_reasons": inconclusive,
     }
