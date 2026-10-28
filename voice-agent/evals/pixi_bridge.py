@@ -119,8 +119,7 @@ class RequestTraceCollector:
             return
         # In this text-driven harness, this is text-input-to-completed-response time.
         # It is not an acoustic end-to-end latency or time-to-first-audio measurement.
-        if self.current_turn.e2e_latency_ms is None:
-            self.current_turn.e2e_latency_ms = duration_ms
+        self.current_turn.e2e_latency_ms = duration_ms
         if self.current_turn.assistant_output.strip() and not self.current_turn.error:
             self.current_turn.status = "completed"
         elif self.current_turn.status == "running":
@@ -275,10 +274,15 @@ async def run_live_session(
         suppress_greeting=True,
     )
     collector.attach(session)
-    started = time.perf_counter()
-    deadline = started + float(os.getenv("VOICE_BRIDGE_TIMEOUT_SECONDS", str(MAX_EVALUATION_SECONDS)))
-    if not 1.0 <= deadline - started <= 30.0:
+    timeout_text = os.getenv("VOICE_BRIDGE_TIMEOUT_SECONDS", str(MAX_EVALUATION_SECONDS))
+    try:
+        timeout_seconds = float(timeout_text)
+    except ValueError as exc:
+        raise BridgeRequestError(503, "VOICE_BRIDGE_TIMEOUT_SECONDS must be a number between 1 and 30.") from exc
+    if not 1.0 <= timeout_seconds <= 30.0:
         raise BridgeRequestError(503, "VOICE_BRIDGE_TIMEOUT_SECONDS must be between 1 and 30.")
+    started = time.perf_counter()
+    deadline = started + timeout_seconds
     try:
         await asyncio.wait_for(session.start(agent=agent), timeout=max(0.1, deadline - time.perf_counter()))
         for user_input in turns:
@@ -309,6 +313,7 @@ async def run_live_session(
         ):
             raise RuntimeError("The LiveKit session did not produce a complete traced assistant response.")
 
+        collector.trace.status = "completed"
         transcript = "\n".join(turn.assistant_output for turn in turns_trace).strip()
         tools_called = list(
             dict.fromkeys(tool.name for turn in turns_trace for tool in turn.tools)
@@ -329,7 +334,10 @@ async def run_live_session(
             "voice_trace": trace,
         }
     finally:
-        await session.close()
+        try:
+            await session.close()
+        except Exception as exc:  # noqa: BLE001 - cleanup errors must not leak provider details
+            logger.warning("Could not close a LiveKit evaluation session (%s).", type(exc).__name__)
 
 
 def evaluate_bridge_request(payload: dict[str, Any]) -> dict[str, Any]:
@@ -459,8 +467,8 @@ class PixiBridgeHandler(BaseHTTPRequestHandler):
             self._write_json(exc.status_code, {"detail": exc.detail})
         except json.JSONDecodeError:
             self._write_json(400, {"detail": "Request body must be valid JSON."})
-        except Exception:
-            logger.error("LiveKit bridge evaluation failed (%s).", type(__import__("sys").exc_info()[1]).__name__)
+        except Exception as exc:  # noqa: BLE001 - do not return provider exception bodies to clients
+            logger.error("LiveKit bridge evaluation failed (%s).", type(exc).__name__)
             self._write_json(502, {"detail": "LiveKit AgentSession evaluation failed or exceeded its deadline; no result was accepted."})
 
 
